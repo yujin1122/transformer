@@ -506,9 +506,21 @@
     let model = null;
     let wireframeMode = false;
 
+    // ===== GLB 模型路径配置 =====
+    // 选择一个路径（取消注释）
+    
+    // 选项 1: 相对路径（本地和 GitHub Pages 都支持）
+    let glbPath = 'mesh_textured_pbr-v2.glb';
+    
+    // 选项 2: jsDelivr CDN（全球加速，推荐）
+    // let glbPath = 'https://cdn.jsdelivr.net/gh/yujin1122/transformer@main/mesh_textured_pbr.glb';
+    
+    // 选项 3: GitHub 原始文件（不推荐，速度慢）
+    // let glbPath = 'https://raw.githubusercontent.com/yujin1122/transformer/main/mesh_textured_pbr.glb';
+
     // ===== 加载 GLB 模型 =====
     const loader = new THREE.GLTFLoader();
-    loader.load('mesh_textured_pbr.glb', (gltf) => {
+    loader.load(glbPath, (gltf) => {
       model = gltf.scene;
       
       // 自动调整模型尺寸和位置
