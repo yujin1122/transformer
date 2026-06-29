@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>变压器 3D 模型 · 能量管理可视化</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --bg-deep: #0b1a33;
+      --bg-panel: #0f264a;
+      --bg-panel-2: #1b3570;
+      --line: #2a4b8a;
+      --line-soft: #1d3a6a;
+      --text-primary: #ffffff;
+      --text-secondary: #e0ecff;
+      --text-faint: #a0c0f0;
+      --cyan: #4fc3ff;
+      --amber: #f9d77e;
+      --red: #ff7b8a;
+      --copper: #d8a667;
+      --font-display: 'Space Grotesk', 'Noto Sans SC', sans-serif;
+      --font-body: 'Noto Sans SC', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+      --btn-shadow-depth: 0 8px 0 #0a1a35, 0 10px 20px rgba(0,0,0,0.6);
+      --btn-shadow-press: 0 2px 0 #0a1a35, 0 5px 12px rgba(0,0,0,0.5);
+      --btn-border-light: rgba(255,255,255,0.18);
+      --btn-border-dark: rgba(0,0,0,0.5);
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      background: radial-gradient(ellipse 1200px 700px at 50% -20%, rgba(79, 195, 255, 0.10), transparent 70%),
+        var(--bg-deep);
+      color: #ffffff;
+      font-weight: 600;
+      font-family: var(--font-body);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .sub,
+    .spec-note,
+    .gauge-caption,
+    .disclaimer p,
+    .step p,
+    .section-head p,
+    .status-note {
+      font-weight: 500;
+      color: var(--text-secondary);
+      opacity: 0.9;
+    }
+
+    h1, h2, h3 {
+      font-weight: 700;
+    }
+
+    .wrap {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 0 32px;
+    }
+
+    /* ========== 3D 画布容器 ========== */
+    .canvas-container {
+      width: 100%;
+      height: 600px;
+      position: relative;
+      margin: 40px 0;
+      border: 1px solid var(--line-soft);
+      border-radius: 12px;
+      overflow: hidden;
+      background: linear-gradient(135deg, rgba(15, 38, 74, 0.8), rgba(27, 53, 112, 0.6));
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    }
+
+    #canvas3d {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .canvas-loading {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      color: var(--text-faint);
+      z-index: 10;
+    }
+
+    .canvas-loading-spinner {
+      width: 40px;
+      height: 40px;
+      margin: 0 auto 20px;
+      border: 3px solid var(--line);
+      border-top-color: var(--cyan);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .canvas-controls {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      display: flex;
+      gap: 10px;
+      z-index: 20;
+    }
+
+    .canvas-btn {
+      padding: 8px 16px;
+      background: rgba(42, 75, 138, 0.9);
+      border: 1px solid var(--btn-border-light);
+      color: #ffffff;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      font-family: var(--font-mono);
+      transition: all 0.2s ease;
+    }
+
+    .canvas-btn:hover {
+      background: rgba(58, 95, 170, 0.95);
+      border-color: var(--cyan);
+    }
+
+    .canvas-btn:active {
+      transform: scale(0.95);
+    }
+
+    /* ========== 指标面板 ========== */
+    .metrics-panel {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 20px;
+      margin: 40px 0;
+      padding: 20px;
+      background: rgba(15, 38, 74, 0.5);
+      border: 1px solid var(--line-soft);
+      border-radius: 12px;
+    }
+
+    .metric-card {
+      padding: 20px;
+      background: linear-gradient(135deg, rgba(27, 53, 112, 0.6), rgba(42, 75, 138, 0.4));
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      text-align: center;
+    }
+
+    .metric-label {
+      font-size: 12px;
+      color: var(--text-faint);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+    }
+
+    .metric-value {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--cyan);
+      font-family: var(--font-mono);
+      line-height: 1;
+    }
+
+    .metric-unit {
+      font-size: 12px;
+      color: var(--text-faint);
+      margin-top: 4px;
+    }
+
+    /* ========== 控制面板 ========== */
+    .control-panel {
+      padding: 24px;
+      background: rgba(15, 38, 74, 0.5);
+      border: 1px solid var(--line-soft);
+      border-radius: 12px;
+      margin: 40px 0;
+    }
+
+    .control-group {
+      margin-bottom: 24px;
+    }
+
+    .control-group:last-child {
+      margin-bottom: 0;
+    }
+
+    .control-label {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: 12px;
+      display: block;
+    }
+
+    .slider-container {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    input[type="range"] {
+      flex: 1;
+      height: 6px;
+      border-radius: 3px;
+      background: linear-gradient(to right, var(--line), var(--cyan));
+      outline: none;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--cyan);
+      cursor: pointer;
+      box-shadow: 0 0 8px rgba(79, 195, 255, 0.5);
+      transition: all 0.2s ease;
+    }
+
+    input[type="range"]::-webkit-slider-thumb:hover {
+      width: 22px;
+      height: 22px;
+      box-shadow: 0 0 16px rgba(79, 195, 255, 0.8);
+    }
+
+    input[type="range"]::-moz-range-thumb {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--cyan);
+      cursor: pointer;
+      border: none;
+      box-shadow: 0 0 8px rgba(79, 195, 255, 0.5);
+      transition: all 0.2s ease;
+    }
+
+    .slider-value {
+      min-width: 60px;
+      text-align: right;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      color: var(--cyan);
+      font-size: 16px;
+    }
+
+    .preset-buttons {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .preset-btn {
+      padding: 8px 14px;
+      background: linear-gradient(180deg, #2a4b8a 0%, #1b3570 100%);
+      border: 1px solid var(--line);
+      color: var(--text-secondary);
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      font-family: var(--font-mono);
+      transition: all 0.2s ease;
+    }
+
+    .preset-btn:hover {
+      background: linear-gradient(180deg, #3a5faa 0%, #1f3f7a 100%);
+      border-color: var(--cyan);
+    }
+
+    .preset-btn.active {
+      background: var(--cyan);
+      color: var(--bg-deep);
+      border-color: var(--cyan);
+    }
+
+    .toggle-btn {
+      padding: 10px 20px;
+      background: linear-gradient(180deg, #2a4b8a 0%, #1b3570 100%);
+      border: 1px solid var(--line);
+      color: var(--text-secondary);
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: var(--font-body);
+      transition: all 0.2s ease;
+    }
+
+    .toggle-btn:hover {
+      background: linear-gradient(180deg, #3a5faa 0%, #1f3f7a 100%);
+      border-color: var(--cyan);
+    }
+
+    .toggle-btn.active {
+      background: linear-gradient(180deg, #f9d77e 0%, #d4a84a 100%);
+      color: var(--bg-deep);
+      border-color: var(--amber);
+    }
+
+    /* ========== 响应式 ========== */
+    @media (max-width: 768px) {
+      .canvas-container {
+        height: 400px;
+      }
+
+      .metrics-panel {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .wrap {
+        padding: 0 16px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .canvas-container {
+        height: 300px;
+      }
+
+      .metrics-panel {
+        grid-template-columns: 1fr;
+      }
+
+      .slider-container {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .slider-value {
+        text-align: left;
+      }
+    }
+
+    .info-text {
+      font-size: 13px;
+      color: var(--text-faint);
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1 style="margin: 40px 0 20px; text-align: center;">变压器 3D 模型</h1>
+    <p style="text-align: center; color: var(--text-secondary); margin-bottom: 30px;">
+      交互式能量管理仿真系统 | 鼠标拖动旋转、滚轮缩放
+    </p>
+
+    <!-- 3D 画布 -->
+    <div class="canvas-container">
+      <canvas id="canvas3d"></canvas>
+      <div class="canvas-loading" id="loadingIndicator">
+        <div class="canvas-loading-spinner"></div>
+        <div>加载 3D 模型中...</div>
+      </div>
+      <div class="canvas-controls">
+        <button class="canvas-btn" id="resetViewBtn">重置视角</button>
+        <button class="canvas-btn" id="toggleWireframeBtn">线框</button>
+      </div>
+    </div>
+
+    <!-- 指标面板 -->
+    <div class="metrics-panel">
+      <div class="metric-card">
+        <div class="metric-label">负载率</div>
+        <div class="metric-value" id="metricLoad">50</div>
+        <div class="metric-unit">%</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">损耗功率</div>
+        <div class="metric-value" id="metricLoss">12.5</div>
+        <div class="metric-unit">kW</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">温升</div>
+        <div class="metric-value" id="metricTemp">45.2</div>
+        <div class="metric-unit">°C</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">余量</div>
+        <div class="metric-value" id="metricMargin">55.0</div>
+        <div class="metric-unit">%</div>
+      </div>
+    </div>
+
+    <!-- 控制面板 -->
+    <div class="control-panel">
+      <div class="control-group">
+        <label class="control-label">负载率调节</label>
+        <div class="slider-container">
+          <input type="range" id="loadSlider" min="0" max="120" value="50" />
+          <span class="slider-value"><span id="loadDisplayValue">50</span>%</span>
+        </div>
+        <p class="info-text">拖动滑块调整变压器负载百分比</p>
+      </div>
+
+      <div class="control-group">
+        <label class="control-label">快速预设</label>
+        <div class="preset-buttons">
+          <button class="preset-btn" data-load="0">空载 0%</button>
+          <button class="preset-btn" data-load="30">轻负荷 30%</button>
+          <button class="preset-btn active" data-load="50">标准 50%</button>
+          <button class="preset-btn" data-load="80">重负荷 80%</button>
+          <button class="preset-btn" data-load="110">超载 110%</button>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <button class="toggle-btn" id="coolingToggle">❄️ 冷却系统：关闭</button>
+        <p class="info-text" id="coolingInfo">启用冷却可降低温度 ~15°C</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Three.js 库 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/loaders/GLTFLoader.js"></script>
+
+  <script>
+    // ===== 配置常数 =====
+    const AMBIENT = 20;
+    const CLASS_LIMIT = 95;
+    const Q_RATED = 25;
+    const AUTOPLAY_PERIOD = 8;
+
+    let currentLoad = 50;
+    let coolingOn = false;
+    let autoplay = false;
+    let autoplayT = 0;
+
+    // ===== DOM 元素 =====
+    const canvas = document.getElementById('canvas3d');
+    const loadingIndicator = document.getElementById('loadingIndicator');
+    const loadSlider = document.getElementById('loadSlider');
+    const loadDisplayValue = document.getElementById('loadDisplayValue');
+    const metricLoad = document.getElementById('metricLoad');
+    const metricLoss = document.getElementById('metricLoss');
+    const metricTemp = document.getElementById('metricTemp');
+    const metricMargin = document.getElementById('metricMargin');
+    const presetBtns = document.querySelectorAll('.preset-btn');
+    const coolingToggle = document.getElementById('coolingToggle');
+    const resetViewBtn = document.getElementById('resetViewBtn');
+    const toggleWireframeBtn = document.getElementById('toggleWireframeBtn');
+
+    // ===== Three.js 场景设置 =====
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(60, canvas.clientWidth / canvas.clientHeight, 0.1, 10000);
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+
+    renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setClearColor(0x0b1a33, 0.1);
+
+    // 灯光设置
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+    scene.add(ambientLight);
+
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
+    directionalLight.position.set(5, 10, 7);
+    directionalLight.castShadow = true;
+    scene.add(directionalLight);
+
+    const pointLight1 = new THREE.PointLight(0x4fc3ff, 0.8);
+    pointLight1.position.set(-10, 5, 10);
+    scene.add(pointLight1);
+
+    const pointLight2 = new THREE.PointLight(0xf9d77e, 0.5);
+    pointLight2.position.set(10, 3, -8);
+    scene.add(pointLight2);
+
+    // 摄像机位置
+    camera.position.set(0, 2, 4);
+    camera.lookAt(0, 0, 0);
+
+    // 轨道控制
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.autoRotate = false;
+    controls.enableZoom = true;
+    controls.enablePan = true;
+
+    let model = null;
+    let wireframeMode = false;
+
+    // ===== 加载 GLB 模型 =====
+    const loader = new THREE.GLTFLoader();
+    loader.load('mesh_textured_pbr.glb', (gltf) => {
+      model = gltf.scene;
+      
+      // 自动调整模型尺寸和位置
+      const box = new THREE.Box3().setFromObject(model);
+      const size = box.getSize(new THREE.Vector3());
+      const maxDim = Math.max(size.x, size.y, size.z);
+      const scale = 3 / maxDim;
+      model.scale.multiplyScalar(scale);
+
+      // 居中模型
+      box.setFromObject(model);
+      const center = box.getCenter(new THREE.Vector3());
+      model.position.sub(center);
+
+      scene.add(model);
+      loadingIndicator.style.display = 'none';
+
+      // 调整摄像机视角
+      camera.position.set(0, 2, 5);
+      controls.target.set(0, 0, 0);
+      controls.update();
+
+      animate();
+    }, undefined, (error) => {
+      console.error('模型加载失败:', error);
+      loadingIndicator.innerHTML = '<div style="color: #ff7b8a;">模型加载失败，请检查文件路径</div>';
+    });
+
+    // ===== 能量统计计算 =====
+    function computeStats(loadFrac) {
+      const Cu = 1.5;
+      const Fe = 8.2;
+      const theta_a = 45;
+      const k = 0.75;
+
+      const Q = (Cu * loadFrac * loadFrac + Fe) / 100 * Q_RATED;
+      const dtheta = (Q / Q_RATED) * (CLASS_LIMIT - AMBIENT) * k;
+      let hotspot = AMBIENT + dtheta;
+
+      if (coolingOn) {
+        hotspot = Math.max(AMBIENT, hotspot - 15);
+      }
+
+      const margin = (CLASS_LIMIT - hotspot) / (CLASS_LIMIT - AMBIENT) * 100;
+
+      return { Q, hotspot, margin };
+    }
+
+    // ===== 颜色内插 =====
+    function lerpColor(c1, c2, t) {
+      return [
+        Math.round(c1[0] + (c2[0] - c1[0]) * t),
+        Math.round(c1[1] + (c2[1] - c1[1]) * t),
+        Math.round(c1[2] + (c2[2] - c1[2]) * t)
+      ];
+    }
+
+    const CYAN = [79, 195, 255];
+    const AMBER = [249, 215, 126];
+    const RED = [255, 123, 138];
+
+    // ===== 更新 UI =====
+    function updateUI(loadPct) {
+      let effectiveLoad = loadPct;
+      if (coolingOn) {
+        effectiveLoad = Math.min(120, loadPct + 20);
+      }
+
+      const stats = computeStats(effectiveLoad);
+
+      metricLoad.textContent = Math.round(loadPct);
+      metricLoss.textContent = (stats.Q).toFixed(1);
+      metricTemp.textContent = stats.hotspot.toFixed(1);
+      metricMargin.textContent = stats.margin.toFixed(1);
+
+      // 更新颜色
+      let color, textColor;
+      if (stats.margin >= 60) {
+        color = CYAN;
+        textColor = 'var(--cyan)';
+      } else if (stats.margin >= 25) {
+        color = AMBER;
+        textColor = 'var(--amber)';
+      } else {
+        color = RED;
+        textColor = 'var(--red)';
+      }
+
+      metricMargin.style.color = textColor;
+      metricLoad.style.color = textColor;
+
+      // 更新模型发光强度
+      if (model) {
+        model.traverse((child) => {
+          if (child.isMesh) {
+            const heatIntensity = Math.min(1, stats.Q / Q_RATED);
+            if (child.material.emissive) {
+              const emitColor = new THREE.Color(
+                `rgb(${Math.round(AMBER[0] + (RED[0] - AMBER[0]) * heatIntensity)},
+                      ${Math.round(AMBER[1] + (RED[1] - AMBER[1]) * heatIntensity)},
+                      ${Math.round(AMBER[2] + (RED[2] - AMBER[2]) * heatIntensity)})`
+              );
+              child.material.emissive = emitColor;
+              child.material.emissiveIntensity = heatIntensity * 0.3;
+            }
+          }
+        });
+      }
+
+      presetBtns.forEach(btn => {
+        btn.classList.toggle('active', Number(btn.dataset.load) === Math.round(loadPct));
+      });
+    }
+
+    // ===== 事件绑定 =====
+    loadSlider.addEventListener('input', (e) => {
+      autoplay = false;
+      currentLoad = Number(e.target.value);
+      loadDisplayValue.textContent = currentLoad;
+      updateUI(currentLoad);
+    });
+
+    presetBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        autoplay = false;
+        currentLoad = Number(btn.dataset.load);
+        loadSlider.value = currentLoad;
+        loadDisplayValue.textContent = currentLoad;
+        updateUI(currentLoad);
+      });
+    });
+
+    coolingToggle.addEventListener('click', () => {
+      coolingOn = !coolingOn;
+      coolingToggle.textContent = coolingOn ? '❄️ 冷却系统：开启' : '❄️ 冷却系统：关闭';
+      coolingToggle.classList.toggle('active', coolingOn);
+      updateUI(currentLoad);
+    });
+
+    resetViewBtn.addEventListener('click', () => {
+      camera.position.set(0, 2, 5);
+      controls.target.set(0, 0, 0);
+      controls.autoRotate = false;
+      controls.update();
+    });
+
+    toggleWireframeBtn.addEventListener('click', () => {
+      wireframeMode = !wireframeMode;
+      if (model) {
+        model.traverse((child) => {
+          if (child.isMesh) {
+            child.material.wireframe = wireframeMode;
+          }
+        });
+      }
+      toggleWireframeBtn.style.background = wireframeMode ? 'var(--cyan)' : 'rgba(42, 75, 138, 0.9)';
+      toggleWireframeBtn.style.color = wireframeMode ? 'var(--bg-deep)' : '#ffffff';
+    });
+
+    // ===== 自适应窗口 =====
+    window.addEventListener('resize', () => {
+      const width = canvas.clientWidth;
+      const height = canvas.clientHeight;
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+      renderer.setSize(width, height);
+    });
+
+    // ===== 动画循环 =====
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+
+      if (autoplay) {
+        autoplayT += 0.016;
+        const phase = (autoplayT % AUTOPLAY_PERIOD) / AUTOPLAY_PERIOD;
+        const load = phase < 0.5 ? phase * 2 * 100 : (1 - phase) * 2 * 100;
+        currentLoad = load;
+        loadSlider.value = load;
+        loadDisplayValue.textContent = Math.round(load);
+        updateUI(load);
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    // ===== 初始化 =====
+    updateUI(currentLoad);
+  </script>
+</body>
+</html>
